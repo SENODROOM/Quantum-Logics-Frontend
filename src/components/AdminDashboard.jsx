@@ -13,8 +13,8 @@ export default function AdminDashboard({ user, logout, notify }) {
   const [editJob, setEditJob] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [jobsRes, appsRes, usersRes] = await Promise.all([
         api.get("/jobs/all"),
@@ -27,7 +27,7 @@ export default function AdminDashboard({ user, logout, notify }) {
     } catch (err) {
       notify("Failed to load data.", "error");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [notify]);
 
@@ -59,6 +59,7 @@ export default function AdminDashboard({ user, logout, notify }) {
       const { data } = await api.patch(`/applications/${appId}/status`, { status });
       setApplications((prev) => prev.map((a) => (a._id === data._id ? data : a)));
       notify(`Application marked as ${status}.`);
+      fetchAll(true); // Silent refresh to keep stats in sync
     } catch {
       notify("Failed to update status.", "error");
     }
@@ -80,13 +81,13 @@ export default function AdminDashboard({ user, logout, notify }) {
           <span className="sidebar-logo-text">Quantum Logics</span>
         </div>
 
-        <button className={`sidebar-btn ${tab === "overview" ? "active" : ""}`} onClick={() => { setTab("overview"); fetchAll(); }}>
+        <button className={`sidebar-btn ${tab === "overview" ? "active" : ""}`} onClick={() => { setTab("overview"); fetchAll(true); }}>
           <Icon name="home" size={18} /> Overview
         </button>
         <button className={`sidebar-btn ${tab === "jobs" ? "active" : ""}`} onClick={() => setTab("jobs")}>
           <Icon name="briefcase" size={18} /> Manage Jobs
         </button>
-        <button className={`sidebar-btn ${tab === "applications" ? "active" : ""}`} onClick={() => { setTab("applications"); fetchAll(); }}>
+        <button className={`sidebar-btn ${tab === "applications" ? "active" : ""}`} onClick={() => { setTab("applications"); fetchAll(true); }}>
           <Icon name="eye" size={18} /> Applications
           {applications.filter((a) => a.status === "pending").length > 0 && (
             <span className="badge badge-orange" style={{ marginLeft: "auto" }}>
@@ -94,7 +95,7 @@ export default function AdminDashboard({ user, logout, notify }) {
             </span>
           )}
         </button>
-        <button className={`sidebar-btn ${tab === "users" ? "active" : ""}`} onClick={() => { setTab("users"); fetchAll(); }}>
+        <button className={`sidebar-btn ${tab === "users" ? "active" : ""}`} onClick={() => { setTab("users"); fetchAll(true); }}>
           <Icon name="users" size={18} /> Users
         </button>
         <button className={`sidebar-btn ${tab === "settings" ? "active" : ""}`} onClick={() => setTab("settings")}>

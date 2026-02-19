@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import './App.css';
 
@@ -46,10 +46,10 @@ function App() {
     setTimeout(() => setLoading(false), 200);
   }, []);
 
-  const notify = (msg, type = "success") => {
+  const notify = useCallback((msg, type = "success") => {
     setNotification({ msg, type });
     setTimeout(() => setNotification(null), 3500);
-  };
+  }, []);
 
   const handleLogin = (user, token) => {
     localStorage.setItem("ql_token", token);
