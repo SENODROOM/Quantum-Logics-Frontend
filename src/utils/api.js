@@ -1,7 +1,15 @@
 import axios from 'axios';
 
+// Determine API URL based on environment
+const getApiUrl = () => {
+    const isProduction = process.env.NODE_ENV === 'production';
+    return isProduction ? 
+        process.env.REACT_APP_API_PROD_URL : 
+        process.env.REACT_APP_API_URL;
+};
+
 const api = axios.create({
-    baseURL: 'http://localhost:5000/api',
+    baseURL: `${getApiUrl()}/api`,
     headers: { 'Content-Type': 'application/json' },
 });
 

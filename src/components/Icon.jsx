@@ -2,11 +2,17 @@
 export default function Icon({ name, size = 20, color = "currentColor" }) {
   const icons = {
     quantum: (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-        <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" />
-        <polygon points="12,6 18,9.5 18,14.5 12,18 6,14.5 6,9.5" opacity="0.5" />
-        <circle cx="12" cy="12" r="2" fill={color} stroke="none" />
-      </svg>
+      <img 
+        src="/new.png" 
+        alt="Quantum Logics Logo" 
+        width={size} 
+        height={size} 
+        style={{ 
+          background: 'transparent',
+          borderRadius: '4px',
+          objectFit: 'contain'
+        }}
+      />
     ),
     briefcase: (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
