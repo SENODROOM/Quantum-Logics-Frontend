@@ -3,6 +3,13 @@ import Icon from "./Icon";
 import JobForm from "./JobForm";
 import api from "../utils/api";
 
+// ─── Helper: initials from name or email ──────────────────────────────────────
+function initials(str = "") {
+  const parts = str.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return str.slice(0, 2).toUpperCase();
+}
+
 // ─── Admin Dashboard ───────────────────────────────────────────────────────────
 export default function AdminDashboard({ user, logout, notify }) {
   const [tab, setTab] = useState("overview");
@@ -12,6 +19,7 @@ export default function AdminDashboard({ user, logout, notify }) {
   const [showJobForm, setShowJobForm] = useState(false);
   const [editJob, setEditJob] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const fetchAll = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -33,8 +41,25 @@ export default function AdminDashboard({ user, logout, notify }) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const close = (e) => {
+      if (!e.target.closest(".sidebar") && !e.target.closest(".sidebar-toggle")) {
+        setSidebarOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [sidebarOpen]);
+
+  const navigate = (newTab) => {
+    setTab(newTab);
+    setSidebarOpen(false);
+    if (["overview", "applications", "users"].includes(newTab)) fetchAll(true);
+  };
+
   const deleteJob = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this job posting? This cannot be undone.")) return;
+    if (!window.confirm("Delete this job posting? This cannot be undone.")) return;
     try {
       await api.delete(`/jobs/${id}`);
       setJobs((prev) => prev.filter((j) => j._id !== id));
@@ -59,7 +84,7 @@ export default function AdminDashboard({ user, logout, notify }) {
       const { data } = await api.patch(`/applications/${appId}/status`, { status });
       setApplications((prev) => prev.map((a) => (a._id === data._id ? data : a)));
       notify(`Application marked as ${status}.`);
-      fetchAll(true); // Silent refresh to keep stats in sync
+      fetchAll(true);
     } catch {
       notify("Failed to update status.", "error");
     }
@@ -72,44 +97,69 @@ export default function AdminDashboard({ user, logout, notify }) {
     rejected: "badge-gray",
   };
 
+  const pendingCount = applications.filter((a) => a.status === "pending").length;
+
+  const navItems = [
+    { id: "overview", icon: "home", label: "Overview" },
+    { id: "jobs", icon: "briefcase", label: "Jobs" },
+    { id: "applications", icon: "eye", label: "Applications", badge: pendingCount },
+    { id: "users", icon: "users", label: "Users" },
+    { id: "settings", icon: "settings", label: "Settings" },
+  ];
+
   return (
     <div className="dashboard">
-      {/* ── Sidebar ───────────────────────────────────── */}
-      <aside className="sidebar">
+
+      {/* ── Sidebar ─────────────────────────────── */}
+      <aside className={`sidebar ${sidebarOpen ? "sidebar--open" : ""}`}>
         <div className="sidebar-logo">
           <Icon name="quantum" size={28} color="#00d4ff" />
           <span className="sidebar-logo-text">Quantum Logics</span>
         </div>
 
-        <button className={`sidebar-btn ${tab === "overview" ? "active" : ""}`} onClick={() => { setTab("overview"); fetchAll(true); }}>
-          <Icon name="home" size={18} /> Overview
-        </button>
-        <button className={`sidebar-btn ${tab === "jobs" ? "active" : ""}`} onClick={() => setTab("jobs")}>
-          <Icon name="briefcase" size={18} /> Manage Jobs
-        </button>
-        <button className={`sidebar-btn ${tab === "applications" ? "active" : ""}`} onClick={() => { setTab("applications"); fetchAll(true); }}>
-          <Icon name="eye" size={18} /> Applications
-          {applications.filter((a) => a.status === "pending").length > 0 && (
-            <span className="badge badge-orange" style={{ marginLeft: "auto" }}>
-              {applications.filter((a) => a.status === "pending").length}
-            </span>
-          )}
-        </button>
-        <button className={`sidebar-btn ${tab === "users" ? "active" : ""}`} onClick={() => { setTab("users"); fetchAll(true); }}>
-          <Icon name="users" size={18} /> Users
-        </button>
-        <button className={`sidebar-btn ${tab === "settings" ? "active" : ""}`} onClick={() => setTab("settings")}>
-          <Icon name="settings" size={18} /> Settings
-        </button>
+        {navItems.map((item) => (
+          <button
+            key={item.id}
+            className={`sidebar-btn ${tab === item.id ? "active" : ""}`}
+            onClick={() => navigate(item.id)}
+          >
+            <Icon name={item.icon} size={18} />
+            {item.label}
+            {item.badge > 0 && (
+              <span className="badge badge-orange" style={{ marginLeft: "auto" }}>
+                {item.badge}
+              </span>
+            )}
+          </button>
+        ))}
 
         <div className="sidebar-footer">
-          <div className="sidebar-user"><strong>Admin</strong>{user.email}</div>
-          <button className="sidebar-btn" onClick={logout}><Icon name="logout" size={18} /> Sign Out</button>
+          <div className="sidebar-user">
+            <strong>Admin</strong>{user.email}
+          </div>
+          <button className="sidebar-btn" onClick={logout}>
+            <Icon name="logout" size={18} /> Sign Out
+          </button>
         </div>
       </aside>
 
-      {/* ── Main Content ──────────────────────────────── */}
+      {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
+
+      {/* ── Main Content ────────────────────────── */}
       <main className="main-content">
+
+        {/* Mobile topbar */}
+        <div className="dash-topbar">
+          <button className="sidebar-toggle" onClick={() => setSidebarOpen((o) => !o)} aria-label="Open menu">
+            <Icon name="menu" size={20} />
+          </button>
+          <span className="dash-topbar-title">
+            {navItems.find((n) => n.id === tab)?.label ?? "Dashboard"}
+          </span>
+          <button className="sidebar-toggle" onClick={logout} aria-label="Sign out">
+            <Icon name="logout" size={18} />
+          </button>
+        </div>
 
         {loading && (
           <div className="empty-state" style={{ marginTop: "4rem" }}>
@@ -117,7 +167,7 @@ export default function AdminDashboard({ user, logout, notify }) {
           </div>
         )}
 
-        {/* ── Tab: Overview ─────────────────────────────── */}
+        {/* ── Overview ────────────────────────────── */}
         {!loading && tab === "overview" && (
           <>
             <div className="page-header">
@@ -127,56 +177,88 @@ export default function AdminDashboard({ user, logout, notify }) {
 
             <div className="stats-cards">
               <div className="stat-card">
-                <div className="stat-card-num">{jobs.filter((j) => j.active).length}</div>
+                <div className="stat-card-icon"><Icon name="briefcase" size={17} /></div>
                 <div className="stat-card-label">Active Jobs</div>
+                <div className="stat-card-num">{jobs.filter((j) => j.active).length}</div>
               </div>
               <div className="stat-card">
-                <div className="stat-card-num" style={{ color: "var(--accent)" }}>{applications.length}</div>
+                <div className="stat-card-icon"><Icon name="eye" size={17} /></div>
                 <div className="stat-card-label">Total Applications</div>
+                <div className="stat-card-num">{applications.length}</div>
               </div>
               <div className="stat-card">
-                <div className="stat-card-num" style={{ color: "var(--warning)" }}>{applications.filter((a) => a.status === "pending").length}</div>
+                <div className="stat-card-icon"><Icon name="clock" size={17} /></div>
                 <div className="stat-card-label">Pending Review</div>
+                <div className="stat-card-num">{pendingCount}</div>
               </div>
               <div className="stat-card">
-                <div className="stat-card-num" style={{ color: "var(--success)" }}>{users.length}</div>
+                <div className="stat-card-icon"><Icon name="users" size={17} /></div>
                 <div className="stat-card-label">Registered Users</div>
+                <div className="stat-card-num">{users.length}</div>
               </div>
             </div>
 
             <div className="card">
-              <h3 style={{ fontFamily: "var(--font-head)", fontWeight: 700, marginBottom: "1rem" }}>Recent Applications</h3>
+              <h3 style={{ fontFamily: "var(--font-head)", fontWeight: 700, marginBottom: "1rem" }}>
+                Recent Applications
+              </h3>
+
               {applications.length === 0 ? (
                 <div className="empty-state"><p>No applications yet.</p></div>
               ) : (
-                <div className="table-wrap">
-                  <table>
-                    <thead><tr><th>Applicant</th><th>Position</th><th>Date</th><th>Status</th></tr></thead>
-                    <tbody>
-                      {applications.slice(0, 5).map((a) => (
-                        <tr key={a._id}>
-                          <td>
-                            <strong>{a.userName}</strong>
-                            <div style={{ fontSize: "0.8rem", color: "var(--text3)" }}>{a.userEmail}</div>
-                          </td>
-                          <td>{a.jobTitle}</td>
-                          <td style={{ color: "var(--text2)" }}>{new Date(a.appliedAt).toLocaleDateString()}</td>
-                          <td><span className={`badge ${statusColor[a.status] || "badge-gray"}`}>{a.status}</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  {/* Desktop: scrollable table */}
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr><th>Applicant</th><th>Position</th><th>Date</th><th>Status</th></tr>
+                      </thead>
+                      <tbody>
+                        {applications.slice(0, 5).map((a) => (
+                          <tr key={a._id}>
+                            <td>
+                              <strong>{a.userName}</strong>
+                              <div style={{ fontSize: "0.8rem", color: "var(--text3)" }}>{a.userEmail}</div>
+                            </td>
+                            <td>{a.jobTitle}</td>
+                            <td style={{ color: "var(--text2)" }}>{new Date(a.appliedAt).toLocaleDateString()}</td>
+                            <td><span className={`badge ${statusColor[a.status] || "badge-gray"}`}>{a.status}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile: card list */}
+                  <div className="app-list">
+                    {applications.slice(0, 5).map((a) => (
+                      <div key={a._id} className="app-list-item">
+                        <div className="app-list-avatar">{initials(a.userName || a.userEmail)}</div>
+                        <div className="app-list-info">
+                          <div className="app-list-name">{a.userName || a.userEmail}</div>
+                          <div className="app-list-sub">{a.jobTitle}</div>
+                        </div>
+                        <div className="app-list-right">
+                          <span className={`badge ${statusColor[a.status] || "badge-gray"}`}>{a.status}</span>
+                          <div className="app-list-date">{new Date(a.appliedAt).toLocaleDateString()}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           </>
         )}
 
-        {/* ── Tab: Manage Jobs ──────────────────────────── */}
+        {/* ── Manage Jobs ─────────────────────────── */}
         {!loading && tab === "jobs" && (
           <>
-            <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
-              <div><h1>Manage Jobs</h1><p>Create, edit, and manage job postings.</p></div>
+            <div className="page-header page-header--row">
+              <div>
+                <h1>Manage Jobs</h1>
+                <p>Create, edit, and manage job postings.</p>
+              </div>
               <button className="btn btn-primary" onClick={() => { setEditJob(null); setShowJobForm(true); }}>
                 <Icon name="plus" size={16} /> Create Job
               </button>
@@ -231,13 +313,13 @@ export default function AdminDashboard({ user, logout, notify }) {
                 </div>
               ))}
               {jobs.length === 0 && (
-                <div className="empty-state"><p>No jobs yet. Create your first job posting!</p></div>
+                <div className="empty-state"><p>No jobs yet. Create your first posting!</p></div>
               )}
             </div>
           </>
         )}
 
-        {/* ── Tab: Applications ─────────────────────────── */}
+        {/* ── Applications ────────────────────────── */}
         {!loading && tab === "applications" && (
           <>
             <div className="page-header">
@@ -252,6 +334,7 @@ export default function AdminDashboard({ user, logout, notify }) {
               </div>
             ) : (
               <div className="card">
+                {/* Desktop: scrollable table */}
                 <div className="table-wrap">
                   <table>
                     <thead>
@@ -287,12 +370,42 @@ export default function AdminDashboard({ user, logout, notify }) {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Mobile: card list */}
+                <div className="app-list">
+                  {applications.map((a) => (
+                    <div key={a._id} className="app-list-item">
+                      <div className="app-list-avatar">{initials(a.userName || a.userEmail)}</div>
+                      <div className="app-list-info">
+                        <div className="app-list-name">{a.userName || a.userEmail}</div>
+                        <div className="app-list-sub">{a.jobTitle}</div>
+                        {a.experience && (
+                          <div className="app-list-sub" style={{ color: "var(--text3)" }}>{a.experience}</div>
+                        )}
+                      </div>
+                      <div className="app-list-right">
+                        <select
+                          className="form-select"
+                          style={{ padding: "3px 6px", fontSize: "0.72rem", width: "auto", borderRadius: "7px" }}
+                          value={a.status}
+                          onChange={(e) => updateAppStatus(a._id, e.target.value)}
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="reviewed">Reviewed</option>
+                          <option value="accepted">Accepted</option>
+                          <option value="rejected">Rejected</option>
+                        </select>
+                        <div className="app-list-date">{new Date(a.appliedAt).toLocaleDateString()}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </>
         )}
 
-        {/* ── Tab: Users ────────────────────────────────── */}
+        {/* ── Users ───────────────────────────────── */}
         {!loading && tab === "users" && (
           <>
             <div className="page-header">
@@ -307,27 +420,54 @@ export default function AdminDashboard({ user, logout, notify }) {
               </div>
             ) : (
               <div className="card">
+                {/* Desktop: scrollable table */}
                 <div className="table-wrap">
                   <table>
-                    <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Applications</th></tr></thead>
+                    <thead>
+                      <tr><th>Name</th><th>Email</th><th>Joined</th><th>Applications</th></tr>
+                    </thead>
                     <tbody>
                       {users.map((u) => (
                         <tr key={u._id}>
                           <td><strong>{u.name}</strong></td>
                           <td style={{ color: "var(--text2)" }}>{u.email}</td>
                           <td style={{ color: "var(--text2)" }}>{new Date(u.createdAt).toLocaleDateString()}</td>
-                          <td><span className="badge badge-blue">{applications.filter((a) => String(a.userId) === String(u._id)).length}</span></td>
+                          <td>
+                            <span className="badge badge-blue">
+                              {applications.filter((a) => String(a.userId) === String(u._id)).length}
+                            </span>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile: card list */}
+                <div className="app-list">
+                  {users.map((u) => {
+                    const appCount = applications.filter((a) => String(a.userId) === String(u._id)).length;
+                    return (
+                      <div key={u._id} className="app-list-item">
+                        <div className="app-list-avatar">{initials(u.name || u.email)}</div>
+                        <div className="app-list-info">
+                          <div className="app-list-name">{u.name}</div>
+                          <div className="app-list-sub">{u.email}</div>
+                        </div>
+                        <div className="app-list-right">
+                          <span className="badge badge-blue">{appCount} app{appCount !== 1 ? "s" : ""}</span>
+                          <div className="app-list-date">Joined {new Date(u.createdAt).toLocaleDateString()}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
           </>
         )}
 
-        {/* ── Tab: Settings ──────────────────────────────── */}
+        {/* ── Settings ────────────────────────────── */}
         {!loading && tab === "settings" && (
           <>
             <div className="page-header">
@@ -359,6 +499,23 @@ export default function AdminDashboard({ user, logout, notify }) {
           </>
         )}
       </main>
+
+      {/* ── Mobile Bottom Nav ───────────────────── */}
+      <nav className="dash-bottom-nav">
+        {navItems.map((item) => (
+          <button
+            key={item.id}
+            className={`dash-bottom-btn ${tab === item.id ? "active" : ""}`}
+            onClick={() => navigate(item.id)}
+          >
+            <span className="dash-bottom-icon">
+              <Icon name={item.icon} size={20} />
+              {item.badge > 0 && <span className="dash-bottom-badge">{item.badge}</span>}
+            </span>
+            <span className="dash-bottom-label">{item.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
