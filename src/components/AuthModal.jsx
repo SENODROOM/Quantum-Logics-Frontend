@@ -99,11 +99,6 @@ export default function AuthModal({ mode, onClose, onLogin, setMode, notify }) {
             <>Already have an account? <button style={{ background: "none", border: "none", color: "var(--primary)", cursor: "pointer", fontSize: "0.85rem" }} onClick={() => setMode("login")}>Sign in</button></>
           )}
         </p>
-
-        {/* ── Admin Demo Hint ───────────────────────────── */}
-        <div style={{ marginTop: "1.5rem", padding: "0.75rem 1rem", background: "rgba(0,212,255,0.05)", border: "1px solid var(--border)", borderRadius: 8, fontSize: "0.78rem", color: "var(--text3)" }}>
-          Admin demo: admin@quantumlogics.io / admin123
-        </div>
       </div>
     </div>
   );
